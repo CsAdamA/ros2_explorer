@@ -1,0 +1,57 @@
+[0.118s] Invoking command in '/workspaces/navigation_ws_humble2/build/turtlebot3_description': CMAKE_PREFIX_PATH=${CMAKE_PREFIX_PATH}:/workspaces/navigation_ws_humble2/install/turtlebot3_teleop:/workspaces/navigation_ws_humble2/install/turtlebot3_example:/workspaces/navigation_ws_humble2/install/explorer_wanderer:/workspaces/navigation_ws_humble2/install/explorer_navigation2:/workspaces/navigation_ws_humble2/install/explorer_map_utils:/workspaces/navigation_ws_humble2/install/explorer_bringup:/opt/ros/humble /usr/bin/cmake /workspaces/navigation_ws_humble2/src/turtlebot3/turtlebot3_description -DAMENT_CMAKE_SYMLINK_INSTALL=1 -DCMAKE_INSTALL_PREFIX=/workspaces/navigation_ws_humble2/install/turtlebot3_description
+[0.525s] -- The C compiler identification is GNU 11.4.0
+[0.526s] -- The CXX compiler identification is GNU 11.4.0
+[0.526s] -- Detecting C compiler ABI info
+[0.526s] -- Detecting C compiler ABI info - done
+[0.526s] -- Check for working C compiler: /usr/bin/cc - skipped
+[0.526s] -- Detecting C compile features
+[0.526s] -- Detecting C compile features - done
+[0.526s] -- Detecting CXX compiler ABI info
+[0.526s] -- Detecting CXX compiler ABI info - done
+[0.527s] -- Check for working CXX compiler: /usr/bin/c++ - skipped
+[0.527s] -- Detecting CXX compile features
+[0.527s] -- Detecting CXX compile features - done
+[0.528s] -- Found ament_cmake: 1.3.5 (/opt/ros/humble/share/ament_cmake/cmake)
+[0.879s] -- Found Python3: /usr/bin/python3.10 (found version "3.10.12") found components: Interpreter 
+[0.996s] -- Override CMake install command with custom implementation using symlinks instead of copying resources
+[1.089s] -- Found urdf: 2.6.0 (/opt/ros/humble/share/urdf/cmake)
+[1.475s] -- Configuring done
+[1.481s] -- Generating done
+[1.482s] -- Build files have been written to: /workspaces/navigation_ws_humble2/build/turtlebot3_description
+[1.498s] Invoked command in '/workspaces/navigation_ws_humble2/build/turtlebot3_description' returned '0': CMAKE_PREFIX_PATH=${CMAKE_PREFIX_PATH}:/workspaces/navigation_ws_humble2/install/turtlebot3_teleop:/workspaces/navigation_ws_humble2/install/turtlebot3_example:/workspaces/navigation_ws_humble2/install/explorer_wanderer:/workspaces/navigation_ws_humble2/install/explorer_navigation2:/workspaces/navigation_ws_humble2/install/explorer_map_utils:/workspaces/navigation_ws_humble2/install/explorer_bringup:/opt/ros/humble /usr/bin/cmake /workspaces/navigation_ws_humble2/src/turtlebot3/turtlebot3_description -DAMENT_CMAKE_SYMLINK_INSTALL=1 -DCMAKE_INSTALL_PREFIX=/workspaces/navigation_ws_humble2/install/turtlebot3_description
+[1.498s] Invoking command in '/workspaces/navigation_ws_humble2/build/turtlebot3_description': CMAKE_PREFIX_PATH=${CMAKE_PREFIX_PATH}:/workspaces/navigation_ws_humble2/install/turtlebot3_teleop:/workspaces/navigation_ws_humble2/install/turtlebot3_example:/workspaces/navigation_ws_humble2/install/explorer_wanderer:/workspaces/navigation_ws_humble2/install/explorer_navigation2:/workspaces/navigation_ws_humble2/install/explorer_map_utils:/workspaces/navigation_ws_humble2/install/explorer_bringup:/opt/ros/humble /usr/bin/cmake --build /workspaces/navigation_ws_humble2/build/turtlebot3_description -- -j8 -l8
+[1.622s] Invoked command in '/workspaces/navigation_ws_humble2/build/turtlebot3_description' returned '0': CMAKE_PREFIX_PATH=${CMAKE_PREFIX_PATH}:/workspaces/navigation_ws_humble2/install/turtlebot3_teleop:/workspaces/navigation_ws_humble2/install/turtlebot3_example:/workspaces/navigation_ws_humble2/install/explorer_wanderer:/workspaces/navigation_ws_humble2/install/explorer_navigation2:/workspaces/navigation_ws_humble2/install/explorer_map_utils:/workspaces/navigation_ws_humble2/install/explorer_bringup:/opt/ros/humble /usr/bin/cmake --build /workspaces/navigation_ws_humble2/build/turtlebot3_description -- -j8 -l8
+[1.784s] Invoking command in '/workspaces/navigation_ws_humble2/build/turtlebot3_description': CMAKE_PREFIX_PATH=${CMAKE_PREFIX_PATH}:/workspaces/navigation_ws_humble2/install/turtlebot3_teleop:/workspaces/navigation_ws_humble2/install/turtlebot3_example:/workspaces/navigation_ws_humble2/install/explorer_wanderer:/workspaces/navigation_ws_humble2/install/explorer_navigation2:/workspaces/navigation_ws_humble2/install/explorer_map_utils:/workspaces/navigation_ws_humble2/install/explorer_bringup:/opt/ros/humble /usr/bin/cmake --install /workspaces/navigation_ws_humble2/build/turtlebot3_description
+[1.799s] -- Install configuration: ""
+[1.800s] -- Execute custom install script
+[1.801s] -- Symlinking: /workspaces/navigation_ws_humble2/install/turtlebot3_description/share/turtlebot3_description/meshes/bases/burger_base.stl
+[1.827s] -- Symlinking: /workspaces/navigation_ws_humble2/install/turtlebot3_description/share/turtlebot3_description/meshes/bases/waffle_base.stl
+[1.841s] -- Symlinking: /workspaces/navigation_ws_humble2/install/turtlebot3_description/share/turtlebot3_description/meshes/bases/waffle_pi_base.stl
+[1.857s] -- Symlinking: /workspaces/navigation_ws_humble2/install/turtlebot3_description/share/turtlebot3_description/meshes/sensors/astra.dae
+[1.877s] -- Symlinking: /workspaces/navigation_ws_humble2/install/turtlebot3_description/share/turtlebot3_description/meshes/sensors/astra.jpg
+[1.892s] -- Symlinking: /workspaces/navigation_ws_humble2/install/turtlebot3_description/share/turtlebot3_description/meshes/sensors/lds.stl
+[1.919s] -- Symlinking: /workspaces/navigation_ws_humble2/install/turtlebot3_description/share/turtlebot3_description/meshes/sensors/r200.dae
+[1.939s] -- Symlinking: /workspaces/navigation_ws_humble2/install/turtlebot3_description/share/turtlebot3_description/meshes/sensors/r200.jpg
+[1.965s] -- Symlinking: /workspaces/navigation_ws_humble2/install/turtlebot3_description/share/turtlebot3_description/meshes/wheels/left_tire.stl
+[1.996s] -- Symlinking: /workspaces/navigation_ws_humble2/install/turtlebot3_description/share/turtlebot3_description/meshes/wheels/right_tire.stl
+[2.037s] -- Symlinking: /workspaces/navigation_ws_humble2/install/turtlebot3_description/share/turtlebot3_description/rviz/model.rviz
+[2.067s] -- Symlinking: /workspaces/navigation_ws_humble2/install/turtlebot3_description/share/turtlebot3_description/urdf/common_properties.urdf
+[2.078s] -- Symlinking: /workspaces/navigation_ws_humble2/install/turtlebot3_description/share/turtlebot3_description/urdf/turtlebot3_burger.urdf
+[2.094s] -- Symlinking: /workspaces/navigation_ws_humble2/install/turtlebot3_description/share/turtlebot3_description/urdf/turtlebot3_waffle.urdf
+[2.114s] -- Symlinking: /workspaces/navigation_ws_humble2/install/turtlebot3_description/share/turtlebot3_description/urdf/turtlebot3_waffle_pi.urdf
+[2.132s] -- Symlinking: /workspaces/navigation_ws_humble2/install/turtlebot3_description/share/ament_index/resource_index/package_run_dependencies/turtlebot3_description
+[2.148s] -- Symlinking: /workspaces/navigation_ws_humble2/install/turtlebot3_description/share/ament_index/resource_index/parent_prefix_path/turtlebot3_description
+[2.191s] -- Symlinking: /workspaces/navigation_ws_humble2/install/turtlebot3_description/share/turtlebot3_description/environment/ament_prefix_path.sh
+[2.209s] -- Symlinking: /workspaces/navigation_ws_humble2/install/turtlebot3_description/share/turtlebot3_description/environment/ament_prefix_path.dsv
+[2.225s] -- Symlinking: /workspaces/navigation_ws_humble2/install/turtlebot3_description/share/turtlebot3_description/environment/path.sh
+[2.247s] -- Symlinking: /workspaces/navigation_ws_humble2/install/turtlebot3_description/share/turtlebot3_description/environment/path.dsv
+[2.262s] -- Symlinking: /workspaces/navigation_ws_humble2/install/turtlebot3_description/share/turtlebot3_description/local_setup.bash
+[2.292s] -- Symlinking: /workspaces/navigation_ws_humble2/install/turtlebot3_description/share/turtlebot3_description/local_setup.sh
+[2.293s] -- Symlinking: /workspaces/navigation_ws_humble2/install/turtlebot3_description/share/turtlebot3_description/local_setup.zsh
+[2.306s] -- Symlinking: /workspaces/navigation_ws_humble2/install/turtlebot3_description/share/turtlebot3_description/local_setup.dsv
+[2.325s] -- Symlinking: /workspaces/navigation_ws_humble2/install/turtlebot3_description/share/turtlebot3_description/package.dsv
+[2.345s] -- Symlinking: /workspaces/navigation_ws_humble2/install/turtlebot3_description/share/ament_index/resource_index/packages/turtlebot3_description
+[2.355s] -- Symlinking: /workspaces/navigation_ws_humble2/install/turtlebot3_description/share/turtlebot3_description/cmake/turtlebot3_descriptionConfig.cmake
+[2.391s] -- Symlinking: /workspaces/navigation_ws_humble2/install/turtlebot3_description/share/turtlebot3_description/cmake/turtlebot3_descriptionConfig-version.cmake
+[2.428s] -- Symlinking: /workspaces/navigation_ws_humble2/install/turtlebot3_description/share/turtlebot3_description/package.xml
+[3.006s] Invoked command in '/workspaces/navigation_ws_humble2/build/turtlebot3_description' returned '0': CMAKE_PREFIX_PATH=${CMAKE_PREFIX_PATH}:/workspaces/navigation_ws_humble2/install/turtlebot3_teleop:/workspaces/navigation_ws_humble2/install/turtlebot3_example:/workspaces/navigation_ws_humble2/install/explorer_wanderer:/workspaces/navigation_ws_humble2/install/explorer_navigation2:/workspaces/navigation_ws_humble2/install/explorer_map_utils:/workspaces/navigation_ws_humble2/install/explorer_bringup:/opt/ros/humble /usr/bin/cmake --install /workspaces/navigation_ws_humble2/build/turtlebot3_description

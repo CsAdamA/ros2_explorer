@@ -1,0 +1,3 @@
+import sys
+sys.real_prefix = sys.prefix
+sys.prefix = sys.exec_prefix = '/workspaces/navigation_ws_humble2/install/turtlebot3_example'
