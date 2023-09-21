@@ -1,1 +1,0 @@
-/workspaces/navigation_ws_humble2/src/turtlebot3/turtlebot3_bringup/launch/rviz2.launch.py
