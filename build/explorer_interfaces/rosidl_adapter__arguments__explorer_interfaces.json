@@ -1,7 +1,0 @@
-{
-  "package_name": "explorer_interfaces",
-  "non_idl_tuples": [
-    "/workspaces/navigation_ws_humble2/src/ros2_explorer/explorer_interfaces:action/Wander.action",
-    "/workspaces/navigation_ws_humble2/src/ros2_explorer/explorer_interfaces:action/Discover.action"
-  ]
-}

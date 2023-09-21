@@ -1,1 +1,0 @@
-/workspaces/navigation_ws_humble2/build/explorer_interfaces/ament_cmake_core/explorer_interfacesConfig-version.cmake
