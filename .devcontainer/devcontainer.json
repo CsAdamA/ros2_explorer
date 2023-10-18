@@ -8,7 +8,7 @@
 	},
 	"remoteUser": "ros",
 	"runArgs": [
-		"--network=host",
+		"--net=host",
 		"--cap-add=SYS_PTRACE",
 		"--security-opt=seccomp:unconfined",
 		"--security-opt=apparmor:unconfined",

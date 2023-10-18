@@ -22,9 +22,9 @@ RUN apt-get update \
         ros-humble-cartographer-ros \
         ros-humble-navigation2 \
         ros-humble-nav2-bringup \
-        ros-humble-turtlebot3-msgs \
+        ros-humble-turtlebot4-msgs \
         ros-humble-dynamixel-sdk \
-        ros-humble-turtlebot3 \
+        ros-humble-turtlebot4 \
         ros-humble-geometry2 \
         ros-humble-rqt* \
         ros-dev-tools \
