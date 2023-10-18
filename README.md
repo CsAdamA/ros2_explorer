@@ -12,6 +12,7 @@
    ros2 launch turtlebot4_viz view_robot.launch.py
 
 Only launch explorer in 4. terminal when nav2 and slam map are visible in rviz.
+
 4. terminal:
    source config.sh
    /bin/python3 /workspaces/nav_ws_humble3/install/nav2_wfd/lib/nav2_wfd/explore
