@@ -17,14 +17,17 @@ import sys
 import time
 
 from action_msgs.msg import GoalStatus
-from geometry_msgs.msg import PoseStamped, PoseWithCovarianceStamped
-from nav2_msgs.action import FollowWaypoints, NavigateToPose
+from geometry_msgs.msg import PoseStamped, PoseWithCovarianceStamped, Quaternion
+from nav2_msgs.action import NavigateToPose
 from nav2_msgs.srv import ManageLifecycleNodes
 from nav2_msgs.srv import GetCostmap
 from nav2_msgs.msg import Costmap
 from nav_msgs.msg  import OccupancyGrid
 from nav_msgs.msg import Odometry
 from geometry_msgs.msg import Pose
+from tf2_ros import Buffer
+
+from builtin_interfaces.msg import Duration
 
 import rclpy
 from rclpy.action import ActionClient
@@ -258,6 +261,7 @@ class WaypointFollowerTest(Node):
         self.waypoints = None
         self.readyToMove = True
         self.currentPose = None
+        self.currentOrientation = None
         self.lastWaypoint = None
         self.action_client = ActionClient(self, NavigateToPose, 'navigate_to_pose')
         self.initial_pose_pub = self.create_publisher(PoseWithCovarianceStamped,
@@ -290,8 +294,6 @@ class WaypointFollowerTest(Node):
         while self.new_init_pose == None:
             self.info_msg("Waiting for initial pose...")
             rclpy.spin_once(self.initial_pose_sub, timeout_sec=1.0)
-            
-            
 
     def initPoseCallback(self, msg):
         self.info_msg(f"Initial pose received: {msg.position.x}, {msg.position.y}")
@@ -299,9 +301,35 @@ class WaypointFollowerTest(Node):
     
     def occupancyGridCallback(self, msg):
         self.costmap = OccupancyGrid2d(msg)
+    
+    def explored_percentage(self):
+        map_width, map_height = self.costmap.getSize()
+
+        # Initialize variables to count explored and total cells
+        num_explored_cells = 0
+        total_cells = map_width * map_height
+        
+
+        # Iterate through the map and count unoccupied (explored) cells
+        costs = []
+        for mx in range(map_width):
+            for my in range(map_height):
+                cost = self.costmap.getCost(mx, my)
+                costs.append(cost)
+                if cost == 0:
+                    num_explored_cells += 1
+        # Calculate the explored percentage
+        explored_percentage = (num_explored_cells / total_cells) * 100.0
+
+        #self.info_msg(f"Map width: {map_width}, map height: {map_height}")
+        #self.info_msg(f"Total cells: {total_cells}, explored cells: {num_explored_cells}")
+        return explored_percentage
 
     def moveToFrontiers(self):
         frontiers = getFrontier(self.currentPose, self.costmap, self.get_logger())
+
+        explored_percentage = self.explored_percentage()
+        self.info_msg(f"Frontier count: {len(frontiers)}, current explored percentage: {explored_percentage}")
 
         if len(frontiers) == 0:
             self.info_msg('No More Frontiers')
@@ -330,14 +358,23 @@ class WaypointFollowerTest(Node):
                 location = [frontiers[dists.index(min(largeDists))]]
             else:
                 return
-
-        #worldFrontiers = [self.costmap.mapToWorld(f[0], f[1]) for f in frontiers]
+            
         self.info_msg(f'World points {location}')
         self.setWaypoints(location)
 
         action_request = NavigateToPose.Goal()
         action_request.pose = self.waypoints[0]
 
+        dx = action_request.pose.pose.position.x - self.currentPose.position.x
+        dy = action_request.pose.pose.position.y - self.currentPose.position.y
+        desired_orientation = math.atan2(dy, dx)
+
+        action_request.pose.pose.orientation = Quaternion()
+        action_request.pose.pose.orientation.x = 0.0
+        action_request.pose.pose.orientation.y = 0.0
+        action_request.pose.pose.orientation.z = math.sin(desired_orientation / 2.0)
+        action_request.pose.pose.orientation.w = math.cos(desired_orientation / 2.0)
+        
         self.info_msg('Sending goal request...')
         send_goal_future = self.action_client.send_goal_async(action_request)
         try:

@@ -2,14 +2,17 @@ FROM althack/ros2:humble-dev
 
 # Install additional packages
 ENV DEBIAN_FRONTEND=noninteractive
-RUN apt-get update \
-    && apt-get -y install --no-install-recommends \
+RUN sudo apt-get update
+RUN sudo apt-get -y install --no-install-recommends \
         libgl1-mesa-dev \
         libglew-dev \
         libeigen3-dev \
         libboost-all-dev \
         libopencv-dev \
         libbackward-cpp-dev \
+        ros-humble-desktop \
+        ros-humble-ros-base \
+        ros-dev-tools \
         ros-humble-rviz2 \
         ros-humble-cv-bridge \
         ros-humble-image-transport \
@@ -24,10 +27,9 @@ RUN apt-get update \
         ros-humble-nav2-bringup \
         ros-humble-turtlebot4-msgs \
         ros-humble-dynamixel-sdk \
-        ros-humble-turtlebot4 \
+        ros-humble-turtlebot4-desktop \
         ros-humble-geometry2 \
         ros-humble-rqt* \
-        ros-dev-tools \
         ros-humble-turtlebot4-simulator \
         nano \
         udev \
