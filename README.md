@@ -1,4 +1,10 @@
 # Frontier explorer
+
+Open docker container, then replace nav2_params.yaml:
+   ```
+   source param_replace.sh
+   ```
+Then to launch the explorer:
 1. terminal:
    ```
    source config.sh
