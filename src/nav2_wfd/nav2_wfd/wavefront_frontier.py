@@ -258,11 +258,13 @@ class WaypointFollowerTest(Node):
 
     def __init__(self):
         super().__init__(node_name='nav2_waypoint_tester', namespace='')
-        self.waypoints = None
+        self.waypoint = None
         self.readyToMove = True
         self.currentPose = None
         self.currentOrientation = None
         self.lastWaypoint = None
+        self.selectedLocations = {}
+        self.invalidLocations = []
         self.action_client = ActionClient(self, NavigateToPose, 'navigate_to_pose')
         self.initial_pose_pub = self.create_publisher(PoseWithCovarianceStamped,
                                                       'initialpose', 10)
@@ -308,9 +310,8 @@ class WaypointFollowerTest(Node):
         # Initialize variables to count explored and total cells
         num_explored_cells = 0
         total_cells = map_width * map_height
-        
 
-        # Iterate through the map and count unoccupied (explored) cells
+        # Count unoccupied (explored) cells
         costs = []
         for mx in range(map_width):
             for my in range(map_height):
@@ -320,51 +321,42 @@ class WaypointFollowerTest(Node):
                     num_explored_cells += 1
         # Calculate the explored percentage
         explored_percentage = (num_explored_cells / total_cells) * 100.0
-
-        #self.info_msg(f"Map width: {map_width}, map height: {map_height}")
-        #self.info_msg(f"Total cells: {total_cells}, explored cells: {num_explored_cells}")
         return explored_percentage
 
     def moveToFrontiers(self):
-        frontiers = getFrontier(self.currentPose, self.costmap, self.get_logger())
-
+        validLocation = False
+        while not validLocation:
+            frontiers = getFrontier(self.currentPose, self.costmap, self.get_logger())
+            # remove already tried innavigable frontiers
+            frontiers = [f for f in frontiers if f not in self.invalidLocations] 
+            if len(frontiers) == 0:
+                self.info_msg('No more navigable Frontiers')
+                return
+            # select navigation location
+            location = self.frontier_goal_selector(frontiers, 0.5, 2)
+            if location == None:
+                self.info_msg('No more navigable Frontiers')
+                return
+            # check if it has been set more than 3 times
+            validLocation = self.location_repetition_check(3, location)
+            new_location = self.is_navigable(location, 0.2, 0.4)
+            if not validLocation or new_location is None:
+                validLocation = False
+                self.invalidLocations.append(location)
+            else:
+                # save selected location
+                self.count_selected_location(location)
+                location = new_location # pass navigable alternative to instead of location
+        
         explored_percentage = self.explored_percentage()
         self.info_msg(f"Frontier count: {len(frontiers)}, current explored percentage: {explored_percentage}")
-
-        if len(frontiers) == 0:
-            self.info_msg('No More Frontiers')
-            return
-
-        location = None
-        dists = []
-        largeDists = []
-        smallDists = []
-        minDistThresh = 0.5
-        maxDistThresh = 2
-        for f in frontiers:
-            dist = math.sqrt(((f[0] - self.currentPose.position.x)**2) + ((f[1] - self.currentPose.position.y)**2))
-            dists.append(dist)
-            if  dist >= minDistThresh and dist <= maxDistThresh:
-                location = [f]
-            elif dist < minDistThresh:
-                smallDists.append(dist)
-            elif dist > maxDistThresh:
-                largeDists.append(dist)
         
-        if location == None:
-            if len(smallDists) != 0:
-                location = [frontiers[dists.index(max(smallDists))]]
-            elif len(largeDists) != 0:
-                location = [frontiers[dists.index(min(largeDists))]]
-            else:
-                return
-            
-        self.info_msg(f'World points {location}')
+        # create waypoint from location
         self.setWaypoints(location)
 
         action_request = NavigateToPose.Goal()
-        action_request.pose = self.waypoints[0]
-
+        action_request.pose = self.waypoint
+        
         dx = action_request.pose.pose.position.x - self.currentPose.position.x
         dy = action_request.pose.pose.position.y - self.currentPose.position.y
         desired_orientation = math.atan2(dy, dx)
@@ -399,9 +391,74 @@ class WaypointFollowerTest(Node):
         except Exception as e:
             self.error_msg('Service call failed %r' % (e,))
 
-        #self.currentPose = self.waypoints[len(self.waypoints) - 1].pose
-
         self.moveToFrontiers()
+
+    def is_navigable(self, goal, robot_radius, max_search_radius):
+        goal_x = goal[0]
+        goal_y = goal[1]
+
+        if self.is_valid(goal) and not self.is_obstacle_in_radius(goal, robot_radius):
+            return goal_x, goal_y
+
+        for r in range(1, max_search_radius + 1):
+            for dx in range(-r, r + 1):
+                for dy in range(-r, r + 1):
+                    if dx**2 + dy**2 <= r**2:
+                        new_x, new_y = goal_x + dx, goal_y + dy
+                        if self.is_valid((new_x, new_y)) and not self.is_obstacle_in_radius((new_x, new_y), robot_radius):
+                            return (new_x, new_y)
+
+        return None  # No navigable cell found within the robot's reach or maximum search radius
+    
+    def is_valid(self, goal):
+        return 0 <= goal[0] < self.costmap.shape[0] and 0 <= goal[1] < self.costmap.shape[1]
+    
+    def is_obstacle_in_radius(self, goal, robot_radius):
+            x = goal[0]
+            y = goal[1]
+            for dx in range(-robot_radius, robot_radius + 1):
+                for dy in range(-robot_radius, robot_radius + 1):
+                    if dx**2 + dy**2 <= robot_radius**2:
+                        new_x, new_y = x + dx, y + dy
+                        if self.is_valid(new_x, new_y) and self.costmap[new_x, new_y] == 100:
+                            return True
+            return False
+
+    def frontier_goal_selector(self, frontiers, minDistThresh, maxDistThresh):
+        location = None
+        dists = []
+        largeDists = []
+        smallDists = []
+        # sort frontiers by distance from current position of the robot
+        for f in frontiers:
+            dist = math.sqrt(((f[0] - self.currentPose.position.x)**2) + ((f[1] - self.currentPose.position.y)**2))
+            dists.append(dist)
+            if  dist >= minDistThresh and dist <= maxDistThresh:
+                location = [f]
+            elif dist < minDistThresh:
+                smallDists.append(dist)
+            elif dist > maxDistThresh:
+                largeDists.append(dist)
+        
+        if location == None:
+            if len(smallDists) != 0:
+                location = [frontiers[dists.index(max(smallDists))]]
+            elif len(largeDists) != 0:
+                location = [frontiers[dists.index(min(largeDists))]]
+
+        return location
+
+    def count_selected_location(self, newLocation):
+        if newLocation in self.selectedLocations:
+            self.selectedLocations[newLocation] += 1
+        else:
+            self.selectedLocations[newLocation] = 1
+
+    def location_repetition_check(self, trynumber, newLocation):
+        if newLocation in self.selectedLocations and self.selectedLocations[newLocation] >= trynumber:
+            return False
+        else:
+            return True
 
     def costmapCallback(self, msg):
         self.costmap = Costmap2d(msg)
@@ -438,62 +495,11 @@ class WaypointFollowerTest(Node):
         
 
     def setWaypoints(self, waypoints):
-        self.waypoints = []
-        for wp in waypoints:
-            msg = PoseStamped()
-            msg.header.frame_id = 'map'
-            msg.pose.position.x = wp[0]
-            msg.pose.position.y = wp[1]
-            #msg.pose.orientation = 
-            self.waypoints.append(msg)
-
-    def run(self, block):
-        if not self.waypoints:
-            rclpy.error_msg('Did not set valid waypoints before running test!')
-            return False
-
-        while not self.action_client.wait_for_server(timeout_sec=1.0):
-            self.info_msg("'NavigateToPose' action server not available, waiting...")
-
-        action_request = NavigateToPose.Goal()
-        action_request.pose = self.waypoints[0]
-
-        self.info_msg('Sending goal request...')
-        send_goal_future = self.action_client.send_goal_async(action_request)
-        try:
-            rclpy.spin_until_future_complete(self, send_goal_future)
-            self.goal_handle = send_goal_future.result()
-        except Exception as e:
-            self.error_msg('Service call failed %r' % (e,))
-
-        if not self.goal_handle.accepted:
-            self.error_msg('Goal rejected')
-            return False
-
-        self.info_msg('Goal accepted')
-        if not block:
-            return True
-
-        get_result_future = self.goal_handle.get_result_async()
-
-        self.info_msg("Waiting for 'NavigateToPose' action to complete")
-        try:
-            rclpy.spin_until_future_complete(self, get_result_future)
-            status = get_result_future.result().status
-            result = get_result_future.result().result
-        except Exception as e:
-            self.error_msg('Service call failed %r' % (e,))
-
-        if status != GoalStatus.STATUS_SUCCEEDED:
-            self.info_msg('Goal failed with status code: {0}'.format(status))
-            return False
-        if len(result.missed_waypoints) > 0:
-            self.info_msg('Goal failed to process all waypoints,'
-                          ' missed {0} wps.'.format(len(result.missed_waypoints)))
-            return False
-
-        self.info_msg('Goal succeeded!')
-        return True
+        msg = PoseStamped()
+        msg.header.frame_id = 'map'
+        msg.pose.position.x = waypoints[0]
+        msg.pose.position.y = waypoints[1]
+        self.waypoints.append(msg)
 
     def publishInitialPose(self):
         self.initial_pose_pub.publish(self.init_pose)
@@ -578,36 +584,6 @@ def main(argv=sys.argv[1:]):
     test.moveToFrontiers()
 
     rclpy.spin(test)
-    # result = test.run(True)
-    # assert result
-
-    # # preempt with new point
-    # test.setWaypoints([starting_pose])
-    # result = test.run(False)
-    # time.sleep(2)
-    # test.setWaypoints([wps[1]])
-    # result = test.run(False)
-
-    # # cancel
-    # time.sleep(2)
-    # test.cancel_goal()
-
-    # # a failure case
-    # time.sleep(2)
-    # test.setWaypoints([[100.0, 100.0]])
-    # result = test.run(True)
-    # assert not result
-    # result = not result
-
-    # test.shutdown()
-    # test.info_msg('Done Shutting Down.')
-
-    # if not result:
-    #     test.info_msg('Exiting failed')
-    #     exit(1)
-    # else:
-    #     test.info_msg('Exiting passed')
-    #     exit(0)
                 
 if __name__ == '__main__':
     main()
