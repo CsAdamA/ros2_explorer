@@ -209,7 +209,7 @@ def getFrontier(pose, costmap, logger):
                 newFrontierCords.append(costmap.mapToWorld(x.mapX, x.mapY))
 
             if len(newFrontier) > MIN_FRONTIER_SIZE:
-                frontiers.append(centroid(newFrontierCords))
+                frontiers.append(tuple(centroid(newFrontierCords)))
 
         for v in getNeighbors(p, costmap, fCache):
             if v.classification & (PointClassification.MapOpen.value | PointClassification.MapClosed.value) == 0:
@@ -257,7 +257,7 @@ class PointClassification(Enum):
 class WaypointFollowerTest(Node):
 
     def __init__(self):
-        super().__init__(node_name='nav2_waypoint_tester', namespace='')
+        super().__init__(node_name='explorer', namespace='')
         self.waypoint = None
         self.readyToMove = True
         self.currentPose = None
@@ -269,7 +269,7 @@ class WaypointFollowerTest(Node):
         self.initial_pose_pub = self.create_publisher(PoseWithCovarianceStamped,
                                                       'initialpose', 10)
 
-        self.costmapClient = self.create_client(GetCostmap, '/global_costmap/get_costmap')
+        self.costmapClient = self.create_client(GetCostmap, '/turtle4/global_costmap/get_costmap')
         while not self.costmapClient.wait_for_service(timeout_sec=1.0):
             self.info_msg('service not available, waiting again...')
         self.initial_pose_received = False
@@ -282,12 +282,12 @@ class WaypointFollowerTest(Node):
           depth=1)
 
         self.model_pose_sub = self.create_subscription(Odometry,
-                                                       '/odom', self.poseCallback, pose_qos)
+                                                       '/turtle4/odom', self.poseCallback, pose_qos)
         self.initial_pose_sub = self.create_subscription(Pose,
                                                        '/new_initialpose', self.initPoseCallback, pose_qos)
 
         # self.costmapSub = self.create_subscription(Costmap(), '/global_costmap/costmap_raw', self.costmapCallback, pose_qos)
-        self.costmapSub = self.create_subscription(OccupancyGrid(), '/map', self.occupancyGridCallback, pose_qos)
+        self.costmapSub = self.create_subscription(OccupancyGrid(), '/turtle4/map', self.occupancyGridCallback, pose_qos)
         self.costmap = None
 
         self.get_logger().info('Running Waypoint Test')
@@ -339,7 +339,7 @@ class WaypointFollowerTest(Node):
                 return
             # check if it has been set more than 3 times
             validLocation = self.location_repetition_check(3, location)
-            new_location = self.is_navigable(location, 0.2, 0.4)
+            new_location = self.is_navigable(location, 0.3, 0.5)
             if not validLocation or new_location is None:
                 validLocation = False
                 self.invalidLocations.append(location)
@@ -400,10 +400,10 @@ class WaypointFollowerTest(Node):
         if self.is_valid(goal) and not self.is_obstacle_in_radius(goal, robot_radius):
             return goal_x, goal_y
 
-        for r in range(1, max_search_radius + 1):
-            for dx in range(-r, r + 1):
-                for dy in range(-r, r + 1):
-                    if dx**2 + dy**2 <= r**2:
+        for r in np.linspace(1, max_search_radius, 10):
+            for dx in np.linspace(-r, r, 10):
+                for dy in np.linspace(-r, r,10):
+                    if (dx**2 + dy**2) <= r**2:
                         new_x, new_y = goal_x + dx, goal_y + dy
                         if self.is_valid((new_x, new_y)) and not self.is_obstacle_in_radius((new_x, new_y), robot_radius):
                             return (new_x, new_y)
@@ -411,16 +411,17 @@ class WaypointFollowerTest(Node):
         return None  # No navigable cell found within the robot's reach or maximum search radius
     
     def is_valid(self, goal):
-        return 0 <= goal[0] < self.costmap.shape[0] and 0 <= goal[1] < self.costmap.shape[1]
+        return 0 <= goal[0] < self.costmap.getSizeX() and 0 <= goal[1] < self.costmap.getSizeY()
     
     def is_obstacle_in_radius(self, goal, robot_radius):
             x = goal[0]
             y = goal[1]
-            for dx in range(-robot_radius, robot_radius + 1):
-                for dy in range(-robot_radius, robot_radius + 1):
+            for dx in np.linspace(-robot_radius, robot_radius, 10):
+                for dy in np.linspace(-robot_radius, robot_radius, 10):
                     if dx**2 + dy**2 <= robot_radius**2:
                         new_x, new_y = x + dx, y + dy
-                        if self.is_valid(new_x, new_y) and self.costmap[new_x, new_y] == 100:
+
+                        if self.is_valid((new_x, new_y)) and self.costmap.getCost(self.costmap.worldToMap(new_x, new_y)[0], self.costmap.worldToMap(new_x, new_y)[1]) == 100:
                             return True
             return False
 
@@ -442,11 +443,11 @@ class WaypointFollowerTest(Node):
         
         if location == None:
             if len(smallDists) != 0:
-                location = [frontiers[dists.index(max(smallDists))]]
+                location = frontiers[dists.index(max(smallDists))]
             elif len(largeDists) != 0:
-                location = [frontiers[dists.index(min(largeDists))]]
+                location = frontiers[dists.index(min(largeDists))]
 
-        return location
+        return location[0]
 
     def count_selected_location(self, newLocation):
         if newLocation in self.selectedLocations:
@@ -455,6 +456,8 @@ class WaypointFollowerTest(Node):
             self.selectedLocations[newLocation] = 1
 
     def location_repetition_check(self, trynumber, newLocation):
+        self.info_msg(f"{type(newLocation)}")
+        self.info_msg(f"{type(self.selectedLocations)}")
         if newLocation in self.selectedLocations and self.selectedLocations[newLocation] >= trynumber:
             return False
         else:
