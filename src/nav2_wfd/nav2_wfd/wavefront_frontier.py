@@ -269,7 +269,7 @@ class WaypointFollowerTest(Node):
         self.initial_pose_pub = self.create_publisher(PoseWithCovarianceStamped,
                                                       'initialpose', 10)
 
-        self.costmapClient = self.create_client(GetCostmap, '/global_costmap/get_costmap')
+        self.costmapClient = self.create_client(GetCostmap, '/turtle4/global_costmap/get_costmap')
         while not self.costmapClient.wait_for_service(timeout_sec=1.0):
             self.info_msg('service not available, waiting again...')
         self.initial_pose_received = False
@@ -282,12 +282,12 @@ class WaypointFollowerTest(Node):
           depth=1)
 
         self.model_pose_sub = self.create_subscription(Odometry,
-                                                       '/odom', self.poseCallback, pose_qos)
+                                                       '/turtle4/odom', self.poseCallback, pose_qos)
         self.initial_pose_sub = self.create_subscription(Pose,
                                                        '/new_initialpose', self.initPoseCallback, pose_qos)
 
         # self.costmapSub = self.create_subscription(Costmap(), '/global_costmap/costmap_raw', self.costmapCallback, pose_qos)
-        self.costmapSub = self.create_subscription(OccupancyGrid(), '/map', self.occupancyGridCallback, pose_qos)
+        self.costmapSub = self.create_subscription(OccupancyGrid(), '/turtle4/map', self.occupancyGridCallback, pose_qos)
         self.costmap = None
 
         self.get_logger().info('Running Waypoint Test')
@@ -447,7 +447,7 @@ class WaypointFollowerTest(Node):
             elif len(largeDists) != 0:
                 location = frontiers[dists.index(min(largeDists))]
 
-        return location
+        return location[0]
 
     def count_selected_location(self, newLocation):
         if newLocation in self.selectedLocations:
@@ -456,6 +456,8 @@ class WaypointFollowerTest(Node):
             self.selectedLocations[newLocation] = 1
 
     def location_repetition_check(self, trynumber, newLocation):
+        self.info_msg(f"{type(newLocation)}")
+        self.info_msg(f"{type(self.selectedLocations)}")
         if newLocation in self.selectedLocations and self.selectedLocations[newLocation] >= trynumber:
             return False
         else:
