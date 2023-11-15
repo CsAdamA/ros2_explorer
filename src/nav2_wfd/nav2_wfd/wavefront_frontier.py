@@ -80,6 +80,7 @@ class OccupancyGrid2d():
         self.map = map
 
     def getCost(self, mx, my):
+        #print(f"Map size: {self.map.info.width, self.map.info.height}, index {self.__getIndex(mx, my)}, coord {mx, my}")
         return self.map.data[self.__getIndex(mx, my)]
 
     def getSize(self):
@@ -99,13 +100,13 @@ class OccupancyGrid2d():
 
     def worldToMap(self, wx, wy):
         if (wx < self.map.info.origin.position.x or wy < self.map.info.origin.position.y):
-            raise Exception("World coordinates out of bounds")
+            raise Exception(f"World coordinates out of bounds {wx, wy} {self.map.info.origin.position.x, self.map.info.origin.position.y}")
 
         mx = int((wx - self.map.info.origin.position.x) / self.map.info.resolution)
         my = int((wy - self.map.info.origin.position.y) / self.map.info.resolution)
         
         if  (my > self.map.info.height or mx > self.map.info.width):
-            raise Exception("Out of bounds")
+            raise Exception(f"Out of bounds: {mx, my}, {self.map.info.height, self.map.info.width}")
 
         return (mx, my)
 
@@ -265,7 +266,7 @@ class WaypointFollowerTest(Node):
         self.lastWaypoint = None
         self.selectedLocations = {}
         self.invalidLocations = []
-        self.action_client = ActionClient(self, NavigateToPose, 'navigate_to_pose')
+        self.action_client = ActionClient(self, NavigateToPose, '/turtle4/navigate_to_pose')
         self.initial_pose_pub = self.create_publisher(PoseWithCovarianceStamped,
                                                       'initialpose', 10)
 
@@ -346,7 +347,7 @@ class WaypointFollowerTest(Node):
             else:
                 # save selected location
                 self.count_selected_location(location)
-                location = new_location # pass navigable alternative to instead of location
+                location = new_location # pass navigable alternative instead of location
         
         explored_percentage = self.explored_percentage()
         self.info_msg(f"Frontier count: {len(frontiers)}, current explored percentage: {explored_percentage}")
@@ -396,9 +397,11 @@ class WaypointFollowerTest(Node):
     def is_navigable(self, goal, robot_radius, max_search_radius):
         goal_x = goal[0]
         goal_y = goal[1]
-
+        return goal_x, goal_y
+        """
         if self.is_valid(goal) and not self.is_obstacle_in_radius(goal, robot_radius):
             return goal_x, goal_y
+        return None
 
         for r in np.linspace(1, max_search_radius, 10):
             for dx in np.linspace(-r, r, 10):
@@ -409,21 +412,29 @@ class WaypointFollowerTest(Node):
                             return (new_x, new_y)
 
         return None  # No navigable cell found within the robot's reach or maximum search radius
+        """
     
     def is_valid(self, goal):
+        #if 0 <= goal[0] < self.costmap.getSizeX() and 0 <= goal[1] < self.costmap.getSizeY():
+            #mx = int((goal[0] - self.costmap.map.info.origin.position.x) / self.costmap.map.info.resolution)
+            #my = int((goal[1] - self.costmap.map.info.origin.position.y) / self.costmap.map.info.resolution)
+            #print(f"In isvalid {mx, my}")
+            #if  (my < self.costmap.map.info.height and mx < self.costmap.map.info.width):
+                #print(True)
+
         return 0 <= goal[0] < self.costmap.getSizeX() and 0 <= goal[1] < self.costmap.getSizeY()
     
     def is_obstacle_in_radius(self, goal, robot_radius):
-            x = goal[0]
-            y = goal[1]
-            for dx in np.linspace(-robot_radius, robot_radius, 10):
-                for dy in np.linspace(-robot_radius, robot_radius, 10):
-                    if dx**2 + dy**2 <= robot_radius**2:
-                        new_x, new_y = x + dx, y + dy
-
-                        if self.is_valid((new_x, new_y)) and self.costmap.getCost(self.costmap.worldToMap(new_x, new_y)[0], self.costmap.worldToMap(new_x, new_y)[1]) == 100:
+        x = goal[0]
+        y = goal[1]
+        for dx in np.linspace(-robot_radius, robot_radius, 10):
+            for dy in np.linspace(-robot_radius, robot_radius, 10):
+                if dx**2 + dy**2 <= robot_radius**2:
+                    new_x, new_y = x + dx, y + dy
+                    if self.is_valid((new_x, new_y)):
+                        if self.costmap.getCost(self.costmap.worldToMap(new_x, new_y)[0], self.costmap.worldToMap(new_x, new_y)[1]) == 100:
                             return True
-            return False
+        return False
 
     def frontier_goal_selector(self, frontiers, minDistThresh, maxDistThresh):
         location = None
@@ -447,7 +458,7 @@ class WaypointFollowerTest(Node):
             elif len(largeDists) != 0:
                 location = frontiers[dists.index(min(largeDists))]
 
-        return location[0]
+        return location
 
     def count_selected_location(self, newLocation):
         if newLocation in self.selectedLocations:
@@ -456,8 +467,6 @@ class WaypointFollowerTest(Node):
             self.selectedLocations[newLocation] = 1
 
     def location_repetition_check(self, trynumber, newLocation):
-        self.info_msg(f"{type(newLocation)}")
-        self.info_msg(f"{type(self.selectedLocations)}")
         if newLocation in self.selectedLocations and self.selectedLocations[newLocation] >= trynumber:
             return False
         else:
