@@ -484,9 +484,10 @@ class WaypointFollowerTest(Node):
                 for dy in np.linspace(-r, r,10):
                     if (dx**2 + dy**2) <= r**2:
                         new_x, new_y = goal_x + dx, goal_y + dy
-                        if self.costmap.getCost(self.costmap.worldToMap(new_x, new_y)[0], self.costmap.worldToMap(new_x, new_y)[1]) != 100:
-                        #if not self.is_obstacle_in_radius((new_x, new_y), robot_radius):
-                            return (new_x, new_y)
+                        if self.is_valid((new_x, new_y)):
+                            if self.costmap.getCost(self.costmap.worldToMap(new_x, new_y)[0], self.costmap.worldToMap(new_x, new_y)[1]) != 100:
+                                if not self.is_obstacle_in_radius((new_x, new_y), robot_radius):
+                                    return (new_x, new_y)
 
         return None  # No navigable cell found within the robot's reach or maximum search radius
         
@@ -500,7 +501,7 @@ class WaypointFollowerTest(Node):
             return False
 
         return 0 <= mx < self.costmap.getSizeX() and 0 <= my < self.costmap.getSizeY()
-    
+    """
     def is_obstacle_in_radius(self, goal, robot_radius): #!!!!!!!!!
         x = goal[0]
         y = goal[1]
@@ -512,6 +513,28 @@ class WaypointFollowerTest(Node):
                         return False
         print(f"Invalid goasl: {goal}")
         return True
+    """
+    def is_obstacle_in_radius(self, goal, robot_radius): #!!!!!!!!!
+        goal_x, goal_y = goal
+
+        # Define a square bounding box around the circular region to check
+        min_x = goal_x - robot_radius
+        max_x = goal_x + robot_radius
+        min_y = goal_y - robot_radius
+        max_y = goal_y + robot_radius
+
+        # Iterate over the cells in the bounding box
+        for x in np.linspace(min_x, max_x, 20):
+            for y in np.linspace(min_y, max_y, 20):
+                # Check if the cell is within the circular region
+                if math.sqrt((x - goal_x) ** 2 + (y - goal_y) ** 2) <= robot_radius:
+                    if self.is_valid((x, y)):
+                        # Check if the cell value represents an obstacle
+                        if self.costmap.getCost(self.costmap.worldToMap(x, y)[0], self.costmap.worldToMap(x, y)[1]) == 100:
+                            return True  # Obstacle is present
+
+        # No obstacle found in the circular region
+        return False
 
     def frontier_goal_selector(self, frontiers, minDistThresh, maxDistThresh):
         location = None
