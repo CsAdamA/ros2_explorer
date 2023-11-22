@@ -25,6 +25,8 @@ from nav2_msgs.msg import Costmap
 from nav_msgs.msg  import OccupancyGrid
 from nav_msgs.msg import Odometry
 from geometry_msgs.msg import Pose
+from geometry_msgs.msg import PointStamped, Point
+from visualization_msgs.msg import Marker
 from tf2_ros import Buffer
 
 from builtin_interfaces.msg import Duration
@@ -38,8 +40,8 @@ from rclpy.qos import QoSProfile
 from enum import Enum
 
 import numpy as np
-
 import math
+import time
 
 OCC_THRESHOLD = 10
 MIN_FRONTIER_SIZE = 5
@@ -266,11 +268,13 @@ class WaypointFollowerTest(Node):
         self.lastWaypoint = None
         self.selectedLocations = {}
         self.invalidLocations = []
-        self.action_client = ActionClient(self, NavigateToPose, '/turtle4/navigate_to_pose')
+        self.action_client = ActionClient(self, NavigateToPose, 'navigate_to_pose')
         self.initial_pose_pub = self.create_publisher(PoseWithCovarianceStamped,
                                                       'initialpose', 10)
 
-        self.costmapClient = self.create_client(GetCostmap, '/turtle4/global_costmap/get_costmap')
+        self.goal_pubisher = self.create_publisher(PointStamped, '/clicked_point_mine', 1)
+        self.frontier_publisher = self.create_publisher(Marker, '/frontier_markers', 20)
+        self.costmapClient = self.create_client(GetCostmap, '/global_costmap/get_costmap')
         while not self.costmapClient.wait_for_service(timeout_sec=1.0):
             self.info_msg('service not available, waiting again...')
         self.initial_pose_received = False
@@ -283,12 +287,12 @@ class WaypointFollowerTest(Node):
           depth=1)
 
         self.model_pose_sub = self.create_subscription(Odometry,
-                                                       '/turtle4/odom', self.poseCallback, pose_qos)
+                                                       '/odom', self.poseCallback, pose_qos)
         self.initial_pose_sub = self.create_subscription(Pose,
                                                        '/new_initialpose', self.initPoseCallback, pose_qos)
 
         # self.costmapSub = self.create_subscription(Costmap(), '/global_costmap/costmap_raw', self.costmapCallback, pose_qos)
-        self.costmapSub = self.create_subscription(OccupancyGrid(), '/turtle4/map', self.occupancyGridCallback, pose_qos)
+        self.costmapSub = self.create_subscription(OccupancyGrid(), '/map', self.occupancyGridCallback, pose_qos)
         self.costmap = None
 
         self.get_logger().info('Running Waypoint Test')
@@ -328,8 +332,13 @@ class WaypointFollowerTest(Node):
         validLocation = False
         while not validLocation:
             frontiers = getFrontier(self.currentPose, self.costmap, self.get_logger())
+            self.frontier_all_publish(frontiers)
+            print("Here")
+            print(len(frontiers))
             # remove already tried innavigable frontiers
-            frontiers = [f for f in frontiers if f not in self.invalidLocations] 
+            frontiers = [f for f in frontiers if f not in self.invalidLocations]
+            print(len(frontiers))
+            self.frontier_valid_publish(frontiers)
             if len(frontiers) == 0:
                 self.info_msg('No more navigable Frontiers')
                 return
@@ -340,7 +349,7 @@ class WaypointFollowerTest(Node):
                 return
             # check if it has been set more than 3 times
             validLocation = self.location_repetition_check(3, location)
-            new_location = self.is_navigable(location, 0.3, 0.5)
+            new_location = self.is_navigable(location, 0.25, 0.5)
             if not validLocation or new_location is None:
                 validLocation = False
                 self.invalidLocations.append(location)
@@ -354,6 +363,12 @@ class WaypointFollowerTest(Node):
         
         # create waypoint from location
         self.setWaypoints(location)
+
+        #send current goal to clicked point
+        goal_for_rviz = PointStamped(point=Point(x=self.waypoint.pose.position.x, y=self.waypoint.pose.position.y, z=0.0))
+        goal_for_rviz.header.frame_id = 'map'
+        self.goal_pubisher.publish(goal_for_rviz)
+
 
         action_request = NavigateToPose.Goal()
         action_request.pose = self.waypoint
@@ -394,37 +409,99 @@ class WaypointFollowerTest(Node):
 
         self.moveToFrontiers()
 
+    def frontier_valid_publish(self, frontiers):
+        #delete_markers = Marker()
+        #delete_markers.header.frame_id = 'map'
+        #delete_markers.header.stamp = self.get_clock().now().to_msg()
+        #delete_markers.action = 3 #delete all
+        #self.frontier_publisher.publish(delete_markers)
+        for i in range(len(frontiers)):
+            marker = Marker()
+            marker.id = i+len(frontiers)
+            marker.header.frame_id = 'map'
+            marker.header.stamp = self.get_clock().now().to_msg()
+            marker.ns = ''
+            marker.type = Marker.SPHERE #SPHERE
+            marker.action = Marker.ADD #add
+            marker.pose.position.x = frontiers[i][0]
+            marker.pose.position.y = frontiers[i][1]
+            marker.pose.position.z = 0.0
+            marker.color.a = 1.0
+            marker.pose.orientation.x = 0.0
+            marker.pose.orientation.y = 0.0 
+            marker.pose.orientation.z = 0.0
+            marker.pose.orientation.w = 1.0
+            marker.scale.x = 0.3
+            marker.scale.y = 0.3
+            marker.scale.z = 0.3
+            marker.color.a = 1.0
+            marker.color.r = 0.0
+            marker.color.g = 1.0
+            marker.color.b = 0.0
+            self.frontier_publisher.publish(marker)
+
+    def frontier_all_publish(self, frontiers):
+        delete_markers = Marker()
+        delete_markers.header.frame_id = 'map'
+        delete_markers.header.stamp = self.get_clock().now().to_msg()
+        delete_markers.action = 3 #delete all
+        self.frontier_publisher.publish(delete_markers)
+        for i in range(len(frontiers)):
+            marker = Marker()
+            marker.id = i
+            marker.header.frame_id = 'map'
+            marker.header.stamp = self.get_clock().now().to_msg()
+            marker.ns = ''
+            marker.type = Marker.SPHERE #SPHERE
+            marker.action = Marker.ADD #add
+            marker.pose.position.x = frontiers[i][0]
+            marker.pose.position.y = frontiers[i][1]
+            marker.pose.position.z = 0.0
+            marker.color.a = 1.0
+            marker.pose.orientation.x = 0.0
+            marker.pose.orientation.y = 0.0 
+            marker.pose.orientation.z = 0.0
+            marker.pose.orientation.w = 1.0
+            marker.scale.x = 0.26
+            marker.scale.y = 0.26
+            marker.scale.z = 0.26
+            marker.color.a = 1.0
+            marker.color.r = 1.0
+            marker.color.g = 0.0
+            marker.color.b = 0.0
+            self.frontier_publisher.publish(marker)
+
     def is_navigable(self, goal, robot_radius, max_search_radius):
         goal_x = goal[0]
         goal_y = goal[1]
-        return goal_x, goal_y
-        """
-        if self.is_valid(goal) and not self.is_obstacle_in_radius(goal, robot_radius):
+        #return goal_x, goal_y
+        
+        if not self.is_obstacle_in_radius(goal, robot_radius):
             return goal_x, goal_y
-        return None
-
-        for r in np.linspace(1, max_search_radius, 10):
+        
+        for r in np.linspace(0, max_search_radius, 10):
             for dx in np.linspace(-r, r, 10):
                 for dy in np.linspace(-r, r,10):
                     if (dx**2 + dy**2) <= r**2:
                         new_x, new_y = goal_x + dx, goal_y + dy
-                        if self.is_valid((new_x, new_y)) and not self.is_obstacle_in_radius((new_x, new_y), robot_radius):
+                        if self.costmap.getCost(self.costmap.worldToMap(new_x, new_y)[0], self.costmap.worldToMap(new_x, new_y)[1]) != 100:
+                        #if not self.is_obstacle_in_radius((new_x, new_y), robot_radius):
                             return (new_x, new_y)
 
         return None  # No navigable cell found within the robot's reach or maximum search radius
-        """
+        
     
     def is_valid(self, goal):
-        #if 0 <= goal[0] < self.costmap.getSizeX() and 0 <= goal[1] < self.costmap.getSizeY():
-            #mx = int((goal[0] - self.costmap.map.info.origin.position.x) / self.costmap.map.info.resolution)
-            #my = int((goal[1] - self.costmap.map.info.origin.position.y) / self.costmap.map.info.resolution)
-            #print(f"In isvalid {mx, my}")
-            #if  (my < self.costmap.map.info.height and mx < self.costmap.map.info.width):
-                #print(True)
+        mx = int((goal[0] - self.costmap.map.info.origin.position.x) / self.costmap.map.info.resolution)
+        my = int((goal[1] - self.costmap.map.info.origin.position.y) / self.costmap.map.info.resolution)
+        #print(f"origin position: {self.costmap.map.info.origin.position.x, self.costmap.map.info.origin.position.y}")
+        #print(f"Goal: {goal}, Costmap size: {self.costmap.getSizeX(), self.costmap.getSizeY()}, Costmap goal: {mx, my}")
+        if goal[0] < self.costmap.map.info.origin.position.x or goal[1] < self.costmap.map.info.origin.position.y:
+            return False
 
-        return 0 <= goal[0] < self.costmap.getSizeX() and 0 <= goal[1] < self.costmap.getSizeY()
+        return 0 <= mx < self.costmap.getSizeX() and 0 <= my < self.costmap.getSizeY()
     
-    def is_obstacle_in_radius(self, goal, robot_radius):
+    def is_obstacle_in_radius(self, goal, robot_radius): #!!!!!!!!!
         x = goal[0]
         y = goal[1]
         for dx in np.linspace(-robot_radius, robot_radius, 10):
@@ -432,9 +509,9 @@ class WaypointFollowerTest(Node):
                 if dx**2 + dy**2 <= robot_radius**2:
                     new_x, new_y = x + dx, y + dy
                     if self.is_valid((new_x, new_y)):
-                        if self.costmap.getCost(self.costmap.worldToMap(new_x, new_y)[0], self.costmap.worldToMap(new_x, new_y)[1]) == 100:
-                            return True
-        return False
+                        return False
+        print(f"Invalid goasl: {goal}")
+        return True
 
     def frontier_goal_selector(self, frontiers, minDistThresh, maxDistThresh):
         location = None
