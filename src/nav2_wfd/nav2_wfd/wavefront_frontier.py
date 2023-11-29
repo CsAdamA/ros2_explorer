@@ -46,31 +46,6 @@ import time
 OCC_THRESHOLD = 10
 MIN_FRONTIER_SIZE = 5
 
-class Costmap2d():
-    class CostValues(Enum):
-        FreeSpace = 0
-        InscribedInflated = 253
-        LethalObstacle = 254
-        NoInformation = 255
-    
-    def __init__(self, map):
-        self.map = map
-
-    def getCost(self, mx, my):
-        return self.map.data[self.__getIndex(mx, my)]
-
-    def getSize(self):
-        return (self.map.metadata.size_x, self.map.metadata.size_y)
-
-    def getSizeX(self):
-        return self.map.metadata.size_x
-
-    def getSizeY(self):
-        return self.map.metadata.size_y
-
-    def __getIndex(self, mx, my):
-        return my * self.map.metadata.size_x + mx
-
 class OccupancyGrid2d():
     class CostValues(Enum):
         FreeSpace = 0
@@ -290,8 +265,6 @@ class WaypointFollowerTest(Node):
                                                        '/odom', self.poseCallback, pose_qos)
         self.initial_pose_sub = self.create_subscription(Pose,
                                                        '/new_initialpose', self.initPoseCallback, pose_qos)
-
-        # self.costmapSub = self.create_subscription(Costmap(), '/global_costmap/costmap_raw', self.costmapCallback, pose_qos)
         self.costmapSub = self.create_subscription(OccupancyGrid(), '/map', self.occupancyGridCallback, pose_qos)
         self.costmap = None
 
@@ -301,7 +274,7 @@ class WaypointFollowerTest(Node):
         while self.new_init_pose == None:
             self.info_msg("Waiting for initial pose...")
             rclpy.spin_once(self.initial_pose_sub, timeout_sec=1.0)
-
+    
     def initPoseCallback(self, msg):
         self.info_msg(f"Initial pose received: {msg.position.x}, {msg.position.y}")
         self.new_init_pose = msg
@@ -333,11 +306,8 @@ class WaypointFollowerTest(Node):
         while not validLocation:
             frontiers = getFrontier(self.currentPose, self.costmap, self.get_logger())
             self.frontier_all_publish(frontiers)
-            print("Here")
-            print(len(frontiers))
             # remove already tried innavigable frontiers
             frontiers = [f for f in frontiers if f not in self.invalidLocations]
-            print(len(frontiers))
             self.frontier_valid_publish(frontiers)
             if len(frontiers) == 0:
                 self.info_msg('No more navigable Frontiers')
@@ -349,7 +319,7 @@ class WaypointFollowerTest(Node):
                 return
             # check if it has been set more than 3 times
             validLocation = self.location_repetition_check(3, location)
-            new_location = self.is_navigable(location, 0.25, 0.5)
+            new_location = self.is_navigable(location, 0.35, 0.5)
             if not validLocation or new_location is None:
                 validLocation = False
                 self.invalidLocations.append(location)
@@ -409,12 +379,140 @@ class WaypointFollowerTest(Node):
 
         self.moveToFrontiers()
 
+    
+
+    def is_navigable(self, goal, robot_radius, max_search_radius):
+        goal_x = goal[0]
+        goal_y = goal[1]
+        #return goal_x, goal_y
+        
+        if not self.is_obstacle_in_radius(goal, robot_radius):
+            return goal_x, goal_y
+        
+        min_x = goal_x - max_search_radius
+        max_x = goal_x + max_search_radius
+        min_y = goal_y - max_search_radius
+        max_y = goal_y + max_search_radius
+
+        closest_point = None
+        closest_distance = (max_search_radius + 1) ** 2
+
+        for x in np.linspace(min_x, max_x, 20):
+            for y in np.linspace(min_y, max_y, 20):
+                if (x-goal_x)**2 + (y-goal_y**2) <= max_search_radius**2:
+                    if self.is_valid((x, y)):
+                        if self.costmap.getCost(self.costmap.worldToMap(x, y)[0], self.costmap.worldToMap(x, y)[1]) == 0:
+                            if not self.is_obstacle_in_radius((x, y), robot_radius):
+                                distance_to_goal = (x - goal_x)**2 + (y - goal_y)**2
+                                if distance_to_goal < closest_distance:
+                                    closest_point = (x, y)
+                                    closest_distance = distance_to_goal
+                                
+        return closest_point 
+        
+    
+    def is_valid(self, goal):
+        mx = int((goal[0] - self.costmap.map.info.origin.position.x) / self.costmap.map.info.resolution)
+        my = int((goal[1] - self.costmap.map.info.origin.position.y) / self.costmap.map.info.resolution)
+        #print(f"origin position: {self.costmap.map.info.origin.position.x, self.costmap.map.info.origin.position.y}")
+        #print(f"Goal: {goal}, Costmap size: {self.costmap.getSizeX(), self.costmap.getSizeY()}, Costmap goal: {mx, my}")
+        if goal[0] < self.costmap.map.info.origin.position.x or goal[1] < self.costmap.map.info.origin.position.y:
+            return False
+
+        return 0 <= mx < self.costmap.getSizeX() and 0 <= my < self.costmap.getSizeY()
+
+    def is_obstacle_in_radius(self, goal, robot_radius): #!!!!!!!!!
+        goal_x, goal_y = goal
+
+        # Define a square bounding box around the circular region to check
+        min_x = goal_x - robot_radius
+        max_x = goal_x + robot_radius
+        min_y = goal_y - robot_radius
+        max_y = goal_y + robot_radius
+
+        # Iterate over the cells in the bounding box
+        for x in np.linspace(min_x, max_x, 20):
+            for y in np.linspace(min_y, max_y, 20):
+                # Check if the cell is within the circular region
+                if (x - goal_x) ** 2 + (y - goal_y) ** 2 <= robot_radius ** 2:
+                    if self.is_valid((x, y)):
+                        # Check if the cell value represents an obstacle
+                        if self.costmap.getCost(self.costmap.worldToMap(x, y)[0], self.costmap.worldToMap(x, y)[1]) == 100:
+                            return True  # Obstacle is present
+
+        # No obstacle found in the circular region
+        return False
+
+    def frontier_goal_selector(self, frontiers, minDistThresh, maxDistThresh):
+        location = None
+        dists = []
+        largeDists = []
+        smallDists = []
+        # sort frontiers by distance from current position of the robot
+        for f in frontiers:
+            dist = math.sqrt(((f[0] - self.currentPose.position.x)**2) + ((f[1] - self.currentPose.position.y)**2))
+            dists.append(dist)
+            if  dist >= minDistThresh and dist <= maxDistThresh:
+                location = f
+            elif dist < minDistThresh:
+                smallDists.append(dist)
+            elif dist > maxDistThresh:
+                largeDists.append(dist)
+        
+        if location == None:
+            if len(smallDists) != 0:
+                location = frontiers[dists.index(max(smallDists))]
+            elif len(largeDists) != 0:
+                location = frontiers[dists.index(min(largeDists))]
+
+        return location
+
+    def count_selected_location(self, newLocation):
+        if newLocation in self.selectedLocations:
+            self.selectedLocations[newLocation] += 1
+        else:
+            self.selectedLocations[newLocation] = 1
+
+    def location_repetition_check(self, trynumber, newLocation):
+        if newLocation in self.selectedLocations and self.selectedLocations[newLocation] >= trynumber:
+            return False
+        else:
+            return True
+
+    def dumpCostmap(self):
+        costmapReq = GetCostmap.Request()
+        self.get_logger().info('Requesting Costmap')
+        costmap = self.costmapClient.call(costmapReq)
+        self.get_logger().info(f'costmap resolution {costmap.specs.resolution}')
+
+    def setInitialPose(self, pose):
+        self.info_msg("Setting initial pose")
+        self.init_pose = PoseWithCovarianceStamped()
+        self.init_pose.pose.pose.position.x = pose[0]
+        self.init_pose.pose.pose.position.y = pose[1]
+        self.init_pose.header.frame_id = 'map'
+        self.currentPose = self.init_pose.pose.pose
+        self.publishInitialPose()
+        time.sleep(5)
+
+    def poseCallback(self, msg):
+        #self.info_msg('Received amcl_pose')
+        self.currentPose = msg.pose.pose
+        #self.currentOrientation = msg.pose.orientation
+        self.initial_pose_received = True
+        
+
+    def setWaypoints(self, waypoint):
+        msg = PoseStamped()
+        msg.header.frame_id = 'map'
+        msg.pose.position.x = waypoint[0]
+        msg.pose.position.y = waypoint[1]
+        self.waypoint = msg
+
+    def publishInitialPose(self):
+        self.initial_pose_pub.publish(self.init_pose)
+
     def frontier_valid_publish(self, frontiers):
-        #delete_markers = Marker()
-        #delete_markers.header.frame_id = 'map'
-        #delete_markers.header.stamp = self.get_clock().now().to_msg()
-        #delete_markers.action = 3 #delete all
-        #self.frontier_publisher.publish(delete_markers)
         for i in range(len(frontiers)):
             marker = Marker()
             marker.id = i+len(frontiers)
@@ -470,151 +568,6 @@ class WaypointFollowerTest(Node):
             marker.color.g = 0.0
             marker.color.b = 0.0
             self.frontier_publisher.publish(marker)
-
-    def is_navigable(self, goal, robot_radius, max_search_radius):
-        goal_x = goal[0]
-        goal_y = goal[1]
-        #return goal_x, goal_y
-        
-        if not self.is_obstacle_in_radius(goal, robot_radius):
-            return goal_x, goal_y
-        
-        for r in np.linspace(0, max_search_radius, 10):
-            for dx in np.linspace(-r, r, 10):
-                for dy in np.linspace(-r, r,10):
-                    if (dx**2 + dy**2) <= r**2:
-                        new_x, new_y = goal_x + dx, goal_y + dy
-                        if self.is_valid((new_x, new_y)):
-                            if self.costmap.getCost(self.costmap.worldToMap(new_x, new_y)[0], self.costmap.worldToMap(new_x, new_y)[1]) != 100:
-                                if not self.is_obstacle_in_radius((new_x, new_y), robot_radius):
-                                    return (new_x, new_y)
-
-        return None  # No navigable cell found within the robot's reach or maximum search radius
-        
-    
-    def is_valid(self, goal):
-        mx = int((goal[0] - self.costmap.map.info.origin.position.x) / self.costmap.map.info.resolution)
-        my = int((goal[1] - self.costmap.map.info.origin.position.y) / self.costmap.map.info.resolution)
-        #print(f"origin position: {self.costmap.map.info.origin.position.x, self.costmap.map.info.origin.position.y}")
-        #print(f"Goal: {goal}, Costmap size: {self.costmap.getSizeX(), self.costmap.getSizeY()}, Costmap goal: {mx, my}")
-        if goal[0] < self.costmap.map.info.origin.position.x or goal[1] < self.costmap.map.info.origin.position.y:
-            return False
-
-        return 0 <= mx < self.costmap.getSizeX() and 0 <= my < self.costmap.getSizeY()
-    """
-    def is_obstacle_in_radius(self, goal, robot_radius): #!!!!!!!!!
-        x = goal[0]
-        y = goal[1]
-        for dx in np.linspace(-robot_radius, robot_radius, 10):
-            for dy in np.linspace(-robot_radius, robot_radius, 10):
-                if dx**2 + dy**2 <= robot_radius**2:
-                    new_x, new_y = x + dx, y + dy
-                    if self.is_valid((new_x, new_y)):
-                        return False
-        print(f"Invalid goasl: {goal}")
-        return True
-    """
-    def is_obstacle_in_radius(self, goal, robot_radius): #!!!!!!!!!
-        goal_x, goal_y = goal
-
-        # Define a square bounding box around the circular region to check
-        min_x = goal_x - robot_radius
-        max_x = goal_x + robot_radius
-        min_y = goal_y - robot_radius
-        max_y = goal_y + robot_radius
-
-        # Iterate over the cells in the bounding box
-        for x in np.linspace(min_x, max_x, 20):
-            for y in np.linspace(min_y, max_y, 20):
-                # Check if the cell is within the circular region
-                if math.sqrt((x - goal_x) ** 2 + (y - goal_y) ** 2) <= robot_radius:
-                    if self.is_valid((x, y)):
-                        # Check if the cell value represents an obstacle
-                        if self.costmap.getCost(self.costmap.worldToMap(x, y)[0], self.costmap.worldToMap(x, y)[1]) == 100:
-                            return True  # Obstacle is present
-
-        # No obstacle found in the circular region
-        return False
-
-    def frontier_goal_selector(self, frontiers, minDistThresh, maxDistThresh):
-        location = None
-        dists = []
-        largeDists = []
-        smallDists = []
-        # sort frontiers by distance from current position of the robot
-        for f in frontiers:
-            dist = math.sqrt(((f[0] - self.currentPose.position.x)**2) + ((f[1] - self.currentPose.position.y)**2))
-            dists.append(dist)
-            if  dist >= minDistThresh and dist <= maxDistThresh:
-                location = f
-            elif dist < minDistThresh:
-                smallDists.append(dist)
-            elif dist > maxDistThresh:
-                largeDists.append(dist)
-        
-        if location == None:
-            if len(smallDists) != 0:
-                location = frontiers[dists.index(max(smallDists))]
-            elif len(largeDists) != 0:
-                location = frontiers[dists.index(min(largeDists))]
-
-        return location
-
-    def count_selected_location(self, newLocation):
-        if newLocation in self.selectedLocations:
-            self.selectedLocations[newLocation] += 1
-        else:
-            self.selectedLocations[newLocation] = 1
-
-    def location_repetition_check(self, trynumber, newLocation):
-        if newLocation in self.selectedLocations and self.selectedLocations[newLocation] >= trynumber:
-            return False
-        else:
-            return True
-
-    def costmapCallback(self, msg):
-        self.costmap = Costmap2d(msg)
-
-        unknowns = 0
-        for x in range(0, self.costmap.getSizeX()):
-            for y in range(0, self.costmap.getSizeY()):
-                if self.costmap.getCost(x, y) == 255:
-                    unknowns = unknowns + 1
-        self.get_logger().info(f'Unknowns {unknowns}')
-        self.get_logger().info(f'Got Costmap {len(getFrontier(None, self.costmap, self.get_logger()))}')
-
-    def dumpCostmap(self):
-        costmapReq = GetCostmap.Request()
-        self.get_logger().info('Requesting Costmap')
-        costmap = self.costmapClient.call(costmapReq)
-        self.get_logger().info(f'costmap resolution {costmap.specs.resolution}')
-
-    def setInitialPose(self, pose):
-        self.info_msg("Setting initial pose")
-        self.init_pose = PoseWithCovarianceStamped()
-        self.init_pose.pose.pose.position.x = pose[0]
-        self.init_pose.pose.pose.position.y = pose[1]
-        self.init_pose.header.frame_id = 'map'
-        self.currentPose = self.init_pose.pose.pose
-        self.publishInitialPose()
-        time.sleep(5)
-
-    def poseCallback(self, msg):
-        #self.info_msg('Received amcl_pose')
-        self.currentPose = msg.pose.pose
-        #self.currentOrientation = msg.pose.orientation
-        self.initial_pose_received = True
-        
-
-    def setWaypoints(self, waypoint):
-        msg = PoseStamped()
-        msg.header.frame_id = 'map'
-        msg.pose.position.x = waypoint[0]
-        msg.pose.position.y = waypoint[1]
-        self.waypoint = msg
-
-    def publishInitialPose(self):
-        self.initial_pose_pub.publish(self.init_pose)
 
     def shutdown(self):
         self.info_msg('Shutting down')
