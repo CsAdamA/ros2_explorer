@@ -50,12 +50,7 @@ def generate_launch_description():
         get_package_share_directory('nav2_bringup'),
         'rviz',
         'nav2_default_view.rviz')
-    
-    print(f"1 {os.path.join(get_package_share_directory('turtlebot3_navigation2'),'map','map.yaml')}")
-    print(f"2 {os.path.join(get_package_share_directory('turtlebot3_navigation2'),'param',param_file_name)}")
-    print(f"3 {param_file_name}")
-    print(f"4 {rviz_config_dir}")
-    print(f"5 {nav2_launch_file_dir}")
+
     return LaunchDescription([
         DeclareLaunchArgument(
             'map',

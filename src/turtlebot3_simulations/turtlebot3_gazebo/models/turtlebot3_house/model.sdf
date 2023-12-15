@@ -4155,32 +4155,6 @@
         </surface>
       </collision>
     </link>
-    <model name='Mailbox'>
-      <link name='link'>
-        <collision name='collision'>
-          <geometry>
-            <mesh>
-              <uri>model://mailbox/meshes/mailbox.dae</uri>
-            </mesh>
-          </geometry>
-        </collision>
-        <visual name='visual'>
-          <geometry>
-            <mesh>
-              <uri>model://mailbox/meshes/mailbox.dae</uri>
-            </mesh>
-          </geometry>
-          <material>
-            <script>
-              <uri>model://mailbox/materials/scripts</uri>
-              <uri>model://mailbox/materials/textures</uri>
-              <name>Mailbox/Diffuse</name>
-            </script>
-          </material>
-        </visual>
-      </link>
-      <pose frame=''>0.883462 -0.576236 0 0 0 -3.14159</pose>
-    </model>
     <model name='bookshelf'>
       <static>1</static>
       <link name='link'>
@@ -5120,79 +5094,36 @@
       </link>
       <pose frame=''>-7.18363 1.24799 0 0 0 -1.5708</pose>
     </model>
-    <model name='cafe_table'>
-      <static>1</static>
+    <model name='first_2015_trash_can_1'>
       <link name='link'>
-        <collision name='surface'>
-          <pose frame=''>0 0 0.755 0 -0 0</pose>
-          <geometry>
-            <box>
-              <size>0.913 0.913 0.04</size>
-            </box>
-          </geometry>
-        </collision>
-        <collision name='column'>
-          <pose frame=''>0 0 0.37 0 -0 0</pose>
-          <geometry>
-            <box>
-              <size>0.042 0.042 0.74</size>
-            </box>
-          </geometry>
-        </collision>
-        <collision name='base'>
-          <pose frame=''>0 0 0.02 0 -0 0</pose>
-          <geometry>
-            <box>
-              <size>0.56 0.56 0.04</size>
-            </box>
-          </geometry>
-        </collision>
+        <inertial>
+          <pose frame=''>0 0 0.3683 0 -0 0</pose>
+          <mass>4.83076</mass>
+          <inertia>
+            <ixx>0.281534</ixx>
+            <ixy>0</ixy>
+            <ixz>0</ixz>
+            <iyy>0.281534</iyy>
+            <iyz>0</iyz>
+            <izz>0.126223</izz>
+          </inertia>
+        </inertial>
         <visual name='visual'>
           <geometry>
             <mesh>
-              <uri>model://cafe_table/meshes/cafe_table.dae</uri>
+              <uri>model://first_2015_trash_can/meshes/trash_can.dae</uri>
             </mesh>
           </geometry>
         </visual>
-      </link>
-      <pose frame=''>6.35919 -3.19202 0 0 -0 0</pose>
-    </model>
-    <model name='cafe_table_0'>
-      <static>1</static>
-      <link name='link'>
-        <collision name='surface'>
-          <pose frame=''>0 0 0.755 0 -0 0</pose>
-          <geometry>
-            <box>
-              <size>0.913 0.913 0.04</size>
-            </box>
-          </geometry>
-        </collision>
-        <collision name='column'>
-          <pose frame=''>0 0 0.37 0 -0 0</pose>
-          <geometry>
-            <box>
-              <size>0.042 0.042 0.74</size>
-            </box>
-          </geometry>
-        </collision>
-        <collision name='base'>
-          <pose frame=''>0 0 0.02 0 -0 0</pose>
-          <geometry>
-            <box>
-              <size>0.56 0.56 0.04</size>
-            </box>
-          </geometry>
-        </collision>
-        <visual name='visual'>
+        <collision name='collision'>
           <geometry>
             <mesh>
-              <uri>model://cafe_table/meshes/cafe_table.dae</uri>
+              <uri>model://first_2015_trash_can/meshes/trash_can.dae</uri>
             </mesh>
           </geometry>
-        </visual>
+        </collision>
       </link>
-      <pose frame=''>6.35903 -2.27759 0 0 -0 0</pose>
+      <pose frame=''>1.07 -0.2 0 0 -0 0</pose>
     </model>
     <model name='first_2015_trash_can'>
       <link name='link'>
@@ -5223,7 +5154,7 @@
           </geometry>
         </collision>
       </link>
-      <pose frame=''>1.88346 1.91193 0 0 -0 0</pose>
+      <pose frame=''>0.3 4.8 0 0 -0 0</pose>
     </model>
     <model name='first_2015_trash_can_0'>
       <link name='link'>
