@@ -44,4 +44,3 @@ Only launch explorer in 5. terminal when nav2 is active and slam map is visible 
    MYDIR="$(basename $PWD)"
    /bin/python3 /workspaces/$MYDIR/install/nav2_wfd/lib/nav2_wfd/explore
    ```
-
