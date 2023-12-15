@@ -16,20 +16,15 @@
 import sys
 import time
 
-from action_msgs.msg import GoalStatus
 from geometry_msgs.msg import PoseStamped, PoseWithCovarianceStamped, Quaternion
 from nav2_msgs.action import NavigateToPose
 from nav2_msgs.srv import ManageLifecycleNodes
 from nav2_msgs.srv import GetCostmap
-from nav2_msgs.msg import Costmap
 from nav_msgs.msg  import OccupancyGrid
 from nav_msgs.msg import Odometry
 from geometry_msgs.msg import Pose
 from geometry_msgs.msg import PointStamped, Point
 from visualization_msgs.msg import Marker
-from tf2_ros import Buffer
-
-from builtin_interfaces.msg import Duration
 
 import rclpy
 from rclpy.action import ActionClient
@@ -113,6 +108,12 @@ class FrontierPoint():
         self.classification = 0
         self.mapX = x
         self.mapY = y
+
+class PointClassification(Enum):
+    MapOpen = 1
+    MapClosed = 2
+    FrontierOpen = 4
+    FrontierClosed = 8
 
 def centroid(arr):
     arr = np.array(arr)
@@ -199,7 +200,6 @@ def getFrontier(pose, costmap, logger):
 
     return frontiers
         
-
 def getNeighbors(point, costmap, fCache):
     neighbors = []
 
@@ -226,33 +226,23 @@ def isFrontierPoint(point, costmap, fCache):
 
     return hasFree
 
-class PointClassification(Enum):
-    MapOpen = 1
-    MapClosed = 2
-    FrontierOpen = 4
-    FrontierClosed = 8
-
-class WaypointFollowerTest(Node):
-
+class WaypointExplorer(Node):
     def __init__(self):
         super().__init__(node_name='explorer', namespace='')
-        self.waypoint = None
-        self.readyToMove = True
         self.currentPose = None
         self.currentOrientation = None
-        self.lastWaypoint = None
         self.selectedLocations = {}
         self.invalidLocations = []
         self.action_client = ActionClient(self, NavigateToPose, 'navigate_to_pose')
         self.initial_pose_pub = self.create_publisher(PoseWithCovarianceStamped,
                                                       'initialpose', 10)
 
-        self.goal_pubisher = self.create_publisher(PointStamped, '/clicked_point_mine', 1)
-        self.frontier_publisher = self.create_publisher(Marker, '/frontier_markers', 20)
+        self.goal_pubisher = self.create_publisher(PointStamped, '/clicked_point', 1)
+        self.frontier_publisher = self.create_publisher(Marker, '/frontier_markers', 50)
         self.costmapClient = self.create_client(GetCostmap, '/global_costmap/get_costmap')
         while not self.costmapClient.wait_for_service(timeout_sec=1.0):
             self.info_msg('service not available, waiting again...')
-        self.initial_pose_received = False
+        self.initial_pose_received = True
         self.goal_handle = None
 
         pose_qos = QoSProfile(
@@ -268,12 +258,11 @@ class WaypointFollowerTest(Node):
         self.costmapSub = self.create_subscription(OccupancyGrid(), '/map', self.occupancyGridCallback, pose_qos)
         self.costmap = None
 
-        self.get_logger().info('Running Waypoint Test')
-
         self.new_init_pose = 0 #!!!!!!!!!!!!!!!!!!!!!!!!!!!!! ezt állítsd át None-ra
         while self.new_init_pose == None:
             self.info_msg("Waiting for initial pose...")
             rclpy.spin_once(self.initial_pose_sub, timeout_sec=1.0)
+
     
     def initPoseCallback(self, msg):
         self.info_msg(f"Initial pose received: {msg.position.x}, {msg.position.y}")
@@ -304,54 +293,37 @@ class WaypointFollowerTest(Node):
     def moveToFrontiers(self):
         validLocation = False
         while not validLocation:
-            frontiers = getFrontier(self.currentPose, self.costmap, self.get_logger())
+            frontiers = getFrontier(self.currentPose, self.costmap, self.info_msg)
             self.frontier_all_publish(frontiers)
-            # remove already tried innavigable frontiers
+            #Remove already tried unnavigable frontiers
             frontiers = [f for f in frontiers if f not in self.invalidLocations]
             self.frontier_valid_publish(frontiers)
-            if len(frontiers) == 0:
-                self.info_msg('No more navigable Frontiers')
-                return
-            # select navigation location
-            location = self.frontier_goal_selector(frontiers, 0.5, 2)
+            #Select navigation location
+            location = self.frontier_goal_selector(frontiers, 0.5, 2) #Set smallDistThresh and largeDistThresh
             if location == None:
                 self.info_msg('No more navigable Frontiers')
                 return
-            # check if it has been set more than 3 times
+            #Check if it has been set more than 3 times
             validLocation = self.location_repetition_check(3, location)
-            new_location = self.is_navigable(location, 0.35, 0.5)
+            new_location = self.is_navigable(location, 0.35, 0.5) #Set robot_radius and max_search_dist
             if not validLocation or new_location is None:
                 validLocation = False
                 self.invalidLocations.append(location)
             else:
-                # save selected location
+                #Save selected location
                 self.count_selected_location(location)
-                location = new_location # pass navigable alternative instead of location
+                location = new_location #Navigable alternative
         
         explored_percentage = self.explored_percentage()
         self.info_msg(f"Frontier count: {len(frontiers)}, current explored percentage: {explored_percentage}")
-        
-        # create waypoint from location
-        self.setWaypoints(location)
 
-        #send current goal to clicked point
-        goal_for_rviz = PointStamped(point=Point(x=self.waypoint.pose.position.x, y=self.waypoint.pose.position.y, z=0.0))
+        #Send current goal to clicked point
+        goal_for_rviz = PointStamped(point=Point(x=location[0], y=location[1], z=0.0))
         goal_for_rviz.header.frame_id = 'map'
         self.goal_pubisher.publish(goal_for_rviz)
 
-
-        action_request = NavigateToPose.Goal()
-        action_request.pose = self.waypoint
-        
-        dx = action_request.pose.pose.position.x - self.currentPose.position.x
-        dy = action_request.pose.pose.position.y - self.currentPose.position.y
-        desired_orientation = math.atan2(dy, dx)
-
-        action_request.pose.pose.orientation = Quaternion()
-        action_request.pose.pose.orientation.x = 0.0
-        action_request.pose.pose.orientation.y = 0.0
-        action_request.pose.pose.orientation.z = math.sin(desired_orientation / 2.0)
-        action_request.pose.pose.orientation.w = math.cos(desired_orientation / 2.0)
+        #Assemble Nav goal action request
+        action_request = self.createActionMsg(location)
         
         self.info_msg(f'Sending goal request {location}')
         send_goal_future = self.action_client.send_goal_async(action_request)
@@ -363,28 +335,25 @@ class WaypointFollowerTest(Node):
 
         if not self.goal_handle.accepted:
             self.error_msg('Goal rejected')
+            #continue
             self.moveToFrontiers()
 
         self.info_msg('Goal accepted')
 
         get_result_future = self.goal_handle.get_result_async()
 
-        self.info_msg("Waiting for 'NavigateToPose' action to complete")
+        self.info_msg("NavigateToPose action in progress...")
         try:
             rclpy.spin_until_future_complete(self, get_result_future)
-            status = get_result_future.result().status
-            result = get_result_future.result().result
         except Exception as e:
             self.error_msg('Service call failed %r' % (e,))
 
         self.moveToFrontiers()
 
-    
-
     def is_navigable(self, goal, robot_radius, max_search_radius):
+        #If goal has obstacles near, than tries to recommend close alternative with no obstacles around in max_search_radius
         goal_x = goal[0]
         goal_y = goal[1]
-        #return goal_x, goal_y
         
         if not self.is_obstacle_in_radius(goal, robot_radius):
             return goal_x, goal_y
@@ -406,57 +375,61 @@ class WaypointFollowerTest(Node):
                                 distance_to_goal = (x - goal_x)**2 + (y - goal_y)**2
                                 if distance_to_goal < closest_distance:
                                     closest_point = (x, y)
-                                    closest_distance = distance_to_goal
-                                
+                                    closest_distance = distance_to_goal       
         return closest_point 
         
     
     def is_valid(self, goal):
+        #Checks if goal is on costmap
         mx = int((goal[0] - self.costmap.map.info.origin.position.x) / self.costmap.map.info.resolution)
         my = int((goal[1] - self.costmap.map.info.origin.position.y) / self.costmap.map.info.resolution)
-        #print(f"origin position: {self.costmap.map.info.origin.position.x, self.costmap.map.info.origin.position.y}")
-        #print(f"Goal: {goal}, Costmap size: {self.costmap.getSizeX(), self.costmap.getSizeY()}, Costmap goal: {mx, my}")
         if goal[0] < self.costmap.map.info.origin.position.x or goal[1] < self.costmap.map.info.origin.position.y:
             return False
 
         return 0 <= mx < self.costmap.getSizeX() and 0 <= my < self.costmap.getSizeY()
 
-    def is_obstacle_in_radius(self, goal, robot_radius): #!!!!!!!!!
+    def is_obstacle_in_radius(self, goal, robot_radius):
+        #Check if goal has any obstacles in robot_radius
         goal_x, goal_y = goal
 
-        # Define a square bounding box around the circular region to check
+        #Bounding box around the circular region to check
         min_x = goal_x - robot_radius
         max_x = goal_x + robot_radius
         min_y = goal_y - robot_radius
         max_y = goal_y + robot_radius
 
-        # Iterate over the cells in the bounding box
         for x in np.linspace(min_x, max_x, 20):
             for y in np.linspace(min_y, max_y, 20):
-                # Check if the cell is within the circular region
+                #Check if the cell is within the circular region
                 if (x - goal_x) ** 2 + (y - goal_y) ** 2 <= robot_radius ** 2:
                     if self.is_valid((x, y)):
-                        # Check if the cell value represents an obstacle
+                        #Check if the cell is an obstacle
                         if self.costmap.getCost(self.costmap.worldToMap(x, y)[0], self.costmap.worldToMap(x, y)[1]) == 100:
-                            return True  # Obstacle is present
-
-        # No obstacle found in the circular region
+                            return True  #Obstacle present
+        #No obstacle
         return False
 
-    def frontier_goal_selector(self, frontiers, minDistThresh, maxDistThresh):
+    def frontier_goal_selector(self, frontiers, smallDistThresh, largeDistThresh):
         location = None
+
+        if len(frontiers) == 0:
+            return location
+
         dists = []
         largeDists = []
         smallDists = []
-        # sort frontiers by distance from current position of the robot
+        #Sort frontiers by distance from current position of the robot
+        #1. smallDistThresh < x < largeDistThrash
+        #2. smallDistThresh > x
+        #3. largeDistThrash < x
         for f in frontiers:
             dist = math.sqrt(((f[0] - self.currentPose.position.x)**2) + ((f[1] - self.currentPose.position.y)**2))
             dists.append(dist)
-            if  dist >= minDistThresh and dist <= maxDistThresh:
+            if  dist >= smallDistThresh and dist <= largeDistThresh:
                 location = f
-            elif dist < minDistThresh:
+            elif dist < smallDistThresh:
                 smallDists.append(dist)
-            elif dist > maxDistThresh:
+            elif dist > largeDistThresh:
                 largeDists.append(dist)
         
         if location == None:
@@ -468,22 +441,18 @@ class WaypointFollowerTest(Node):
         return location
 
     def count_selected_location(self, newLocation):
+        #Count and add locations
         if newLocation in self.selectedLocations:
             self.selectedLocations[newLocation] += 1
         else:
             self.selectedLocations[newLocation] = 1
 
     def location_repetition_check(self, trynumber, newLocation):
+        #Check if location has been tried to be explored more than 3 times
         if newLocation in self.selectedLocations and self.selectedLocations[newLocation] >= trynumber:
             return False
         else:
             return True
-
-    def dumpCostmap(self):
-        costmapReq = GetCostmap.Request()
-        self.get_logger().info('Requesting Costmap')
-        costmap = self.costmapClient.call(costmapReq)
-        self.get_logger().info(f'costmap resolution {costmap.specs.resolution}')
 
     def setInitialPose(self, pose):
         self.info_msg("Setting initial pose")
@@ -500,27 +469,41 @@ class WaypointFollowerTest(Node):
         self.currentPose = msg.pose.pose
         #self.currentOrientation = msg.pose.orientation
         self.initial_pose_received = True
-        
 
-    def setWaypoints(self, waypoint):
-        msg = PoseStamped()
-        msg.header.frame_id = 'map'
-        msg.pose.position.x = waypoint[0]
-        msg.pose.position.y = waypoint[1]
-        self.waypoint = msg
+    def createActionMsg(self, goal):
+        #Creates the action_request in the right form, with orientation (vector from current pos to goal)
+        action_request = NavigateToPose.Goal()
+        action_request.pose = PoseStamped()
+        action_request.pose.header.frame_id = 'map'
+        print(goal[0], goal[1])
+        action_request.pose.pose.position.x = goal[0]
+        action_request.pose.pose.position.y = goal[1]
+        
+        dx = action_request.pose.pose.position.x - self.currentPose.position.x
+        dy = action_request.pose.pose.position.y - self.currentPose.position.y
+        orientation_angle = math.atan2(dy, dx)
+
+        action_request.pose.pose.orientation = Quaternion()
+        action_request.pose.pose.orientation.x = 0.0
+        action_request.pose.pose.orientation.y = 0.0
+        action_request.pose.pose.orientation.z = math.sin(orientation_angle / 2.0)
+        action_request.pose.pose.orientation.w = math.cos(orientation_angle / 2.0)
+
+        return action_request
 
     def publishInitialPose(self):
         self.initial_pose_pub.publish(self.init_pose)
 
     def frontier_valid_publish(self, frontiers):
+        #Visualize accessible frontiers
         for i in range(len(frontiers)):
             marker = Marker()
             marker.id = i+len(frontiers)
             marker.header.frame_id = 'map'
             marker.header.stamp = self.get_clock().now().to_msg()
             marker.ns = ''
-            marker.type = Marker.SPHERE #SPHERE
-            marker.action = Marker.ADD #add
+            marker.type = Marker.SPHERE
+            marker.action = Marker.ADD
             marker.pose.position.x = frontiers[i][0]
             marker.pose.position.y = frontiers[i][1]
             marker.pose.position.z = 0.0
@@ -539,6 +522,7 @@ class WaypointFollowerTest(Node):
             self.frontier_publisher.publish(marker)
 
     def frontier_all_publish(self, frontiers):
+        #Visualize all frontiers
         delete_markers = Marker()
         delete_markers.header.frame_id = 'map'
         delete_markers.header.stamp = self.get_clock().now().to_msg()
@@ -550,8 +534,8 @@ class WaypointFollowerTest(Node):
             marker.header.frame_id = 'map'
             marker.header.stamp = self.get_clock().now().to_msg()
             marker.ns = ''
-            marker.type = Marker.SPHERE #SPHERE
-            marker.action = Marker.ADD #add
+            marker.type = Marker.SPHERE
+            marker.action = Marker.ADD
             marker.pose.position.x = frontiers[i][0]
             marker.pose.position.y = frontiers[i][1]
             marker.pose.position.z = 0.0
@@ -569,48 +553,6 @@ class WaypointFollowerTest(Node):
             marker.color.b = 0.0
             self.frontier_publisher.publish(marker)
 
-    def shutdown(self):
-        self.info_msg('Shutting down')
-
-        self.action_client.destroy()
-        self.info_msg('Destroyed NavigateToPose action client')
-
-        transition_service = 'lifecycle_manager_navigation/manage_nodes'
-        mgr_client = self.create_client(ManageLifecycleNodes, transition_service)
-        while not mgr_client.wait_for_service(timeout_sec=1.0):
-            self.info_msg(transition_service + ' service not available, waiting...')
-
-        req = ManageLifecycleNodes.Request()
-        req.command = ManageLifecycleNodes.Request().SHUTDOWN
-        future = mgr_client.call_async(req)
-        try:
-            rclpy.spin_until_future_complete(self, future)
-            future.result()
-        except Exception as e:
-            self.error_msg('%s service call failed %r' % (transition_service, e,))
-
-        self.info_msg('{} finished'.format(transition_service))
-
-        transition_service = 'lifecycle_manager_localization/manage_nodes'
-        mgr_client = self.create_client(ManageLifecycleNodes, transition_service)
-        while not mgr_client.wait_for_service(timeout_sec=1.0):
-            self.info_msg(transition_service + ' service not available, waiting...')
-
-        req = ManageLifecycleNodes.Request()
-        req.command = ManageLifecycleNodes.Request().SHUTDOWN
-        future = mgr_client.call_async(req)
-        try:
-            rclpy.spin_until_future_complete(self, future)
-            future.result()
-        except Exception as e:
-            self.error_msg('%s service call failed %r' % (transition_service, e,))
-
-        self.info_msg('{} finished'.format(transition_service))
-
-    def cancel_goal(self):
-        cancel_future = self.goal_handle.cancel_goal_async()
-        rclpy.spin_until_future_complete(self, cancel_future)
-
     def info_msg(self, msg: str):
         self.get_logger().info(msg)
 
@@ -624,31 +566,26 @@ class WaypointFollowerTest(Node):
 def main(argv=sys.argv[1:]):
     rclpy.init()
 
-    # wait a few seconds to make sure entire stacks are up
-    #time.sleep(10)
-
-    wps = [[-0.52, -0.5]]
     starting_pose = [0.0, 0.0]
 
-    test = WaypointFollowerTest()
-    #test.dumpCostmap()
-    #test.setWaypoints(wps)
+    explorer = WaypointExplorer()
+    
+    if explorer.new_init_pose != None:
+        explorer.setInitialPose(starting_pose)
+        #explorer.setInitialPose(explorer.new_init_pose)
+        explorer.info_msg('Setting initial pose')
+        while not explorer.initial_pose_received:
+            explorer.info_msg('Waiting for amcl_pose to be received')
+            rclpy.spin_once(explorer, timeout_sec=1.0)  #Wait for poseCallback
+    
+    while explorer.costmap == None:
+        explorer.info_msg('Getting initial map')
+        rclpy.spin_once(explorer, timeout_sec=1.0)
 
-    if test.new_init_pose != None:
-        test.setInitialPose(starting_pose)
-        #test.setInitialPose(test.new_init_pose)
-        test.info_msg('Setting initial pose')
-        while not test.initial_pose_received:
-            test.info_msg('Waiting for amcl_pose to be received')
-            rclpy.spin_once(test, timeout_sec=1.0)  # wait for poseCallback
+    explorer.info_msg('WaypointExplorer ready!')
+    explorer.moveToFrontiers()
 
-    while test.costmap == None:
-        test.info_msg('Getting initial map')
-        rclpy.spin_once(test, timeout_sec=1.0)
-
-    test.moveToFrontiers()
-
-    rclpy.spin(test)
+    rclpy.spin(explorer)
                 
 if __name__ == '__main__':
     main()
