@@ -36,7 +36,7 @@ Then to launch the explorer:
    source config.sh
    ros2 launch turtlebot4_viz view_robot.launch.py
    ```
-Only launch explorer in 4. terminal when nav2 is active and slam map is visible in rviz.
+Only launch explorer in 5. terminal when nav2 is active and slam map is visible in rviz.
 
 5. terminal:
    ```
