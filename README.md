@@ -4,26 +4,40 @@ Open docker container, then replace nav2_params.yaml:
    ```
    source param_replace.sh
    ```
+Launch simulation:
+1. terminal (for simulation):
+   ```
+   export TURTLEBOT3_MODEL=burger
+   ros2 launch turtlebot3_gazebo turtlebot3_house.launch.py
+   ```
 Then to launch the explorer:
-1. terminal:
+2. terminal:
    ```
    source config.sh
    ros2 launch turtlebot4_navigation slam.launch.py
    ```
-2. terminal:
+3. terminal:
    ```
    source config.sh
    ros2 launch turtlebot4_navigation nav2.launch.py
    ```
-3. terminal:
+   (in case of simulation you can launch turtlebot3 navigation, it has the parameters for the burger model:)
+   ```
+   source config.sh
+   export TURTLEBOT3_MODEL=burger
+   ros2 launch turtlebot3_navigation2 navigation2.launch.py
+   ```
+5. terminal:
    ```
    source config.sh
    ros2 launch turtlebot4_viz view_robot.launch.py
    ```
 Only launch explorer in 4. terminal when nav2 is active and slam map is visible in rviz.
 
-4. terminal:
+5. terminal:
    ```
    source config.sh
-   /bin/python3 /workspaces/nav_ws_humble3/install/nav2_wfd/lib/nav2_wfd/explore
+   MYDIR="$(basename $PWD)"
+   /bin/python3 /workspaces/$MYDIR/install/nav2_wfd/lib/nav2_wfd/explore
    ```
+
