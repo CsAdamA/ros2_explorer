@@ -25,6 +25,8 @@ from nav_msgs.msg import Odometry
 from geometry_msgs.msg import Pose
 from geometry_msgs.msg import PointStamped, Point
 from visualization_msgs.msg import Marker
+from irobot_create_msgs.msg import AudioNoteVector, AudioNote
+from builtin_interfaces.msg import Duration
 
 import rclpy
 from rclpy.action import ActionClient
@@ -236,7 +238,7 @@ class WaypointExplorer(Node):
         self.action_client = ActionClient(self, NavigateToPose, 'navigate_to_pose')
         self.initial_pose_pub = self.create_publisher(PoseWithCovarianceStamped,
                                                       'initialpose', 10)
-
+        self.audio_publisher = self.create_publisher(AudioNoteVector, '/cmd_audio', 1)
         self.goal_pubisher = self.create_publisher(PointStamped, '/clicked_point', 1)
         self.frontier_publisher = self.create_publisher(Marker, '/frontier_markers', 50)
         self.costmapClient = self.create_client(GetCostmap, '/global_costmap/get_costmap')
@@ -258,7 +260,7 @@ class WaypointExplorer(Node):
         self.costmapSub = self.create_subscription(OccupancyGrid(), '/map', self.occupancyGridCallback, pose_qos)
         self.costmap = None
 
-        self.new_init_pose = 0 #!!!!!!!!!!!!!!!!!!!!!!!!!!!!! ezt állítsd át None-ra
+        self.new_init_pose = None
         while self.new_init_pose == None:
             self.info_msg("Waiting for initial pose...")
             rclpy.spin_once(self.initial_pose_sub, timeout_sec=1.0)
@@ -302,6 +304,7 @@ class WaypointExplorer(Node):
             location = self.frontier_goal_selector(frontiers, 0.5, 2) #Set smallDistThresh and largeDistThresh
             if location == None:
                 self.info_msg('No more navigable Frontiers')
+                self.play_finish_audio()
                 return
             #Check if it has been set more than 3 times
             validLocation = self.location_repetition_check(3, location)
@@ -553,6 +556,16 @@ class WaypointExplorer(Node):
             marker.color.b = 0.0
             self.frontier_publisher.publish(marker)
 
+    def play_finish_audio(self):
+        audio_msg = AudioNoteVector()
+        audio_msg.header.frame_id = 'map'
+        audio = [AudioNote(frequency=392, max_runtime=Duration(sec=0, nanosec=177500000)), AudioNote(frequency=523, max_runtime=Duration(sec=0, nanosec=355000000)), AudioNote(frequency=587, max_runtime=Duration(sec=0, nanosec=177500000)), AudioNote(frequency=784, max_runtime=Duration(sec=0, nanosec=533000000))]
+        audio_msg.notes = audio
+        audio_msg.append = False
+
+        self.audio_publisher.publish(audio_msg)
+        self.info_msg("Victory song")
+
     def info_msg(self, msg: str):
         self.get_logger().info(msg)
 
@@ -569,7 +582,7 @@ def main(argv=sys.argv[1:]):
     starting_pose = [0.0, 0.0]
 
     explorer = WaypointExplorer()
-    
+
     if explorer.new_init_pose != None:
         explorer.setInitialPose(starting_pose)
         #explorer.setInitialPose(explorer.new_init_pose)

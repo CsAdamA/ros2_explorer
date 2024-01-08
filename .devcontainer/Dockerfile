@@ -31,6 +31,7 @@ RUN sudo apt-get -y install --no-install-recommends \
         ros-humble-geometry2 \
         ros-humble-rqt* \
         ros-humble-turtlebot4-simulator \
+        ros-humble-irobot-create-msgs \
         nano \
         udev \
     # Clean up
