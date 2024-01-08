@@ -260,7 +260,7 @@ class WaypointExplorer(Node):
         self.costmapSub = self.create_subscription(OccupancyGrid(), '/map', self.occupancyGridCallback, pose_qos)
         self.costmap = None
 
-        self.new_init_pose = 0 #!!!!!!!!!!!!!!!!!!!!!!!!!!!!! ezt állítsd át None-ra
+        self.new_init_pose = None
         while self.new_init_pose == None:
             self.info_msg("Waiting for initial pose...")
             rclpy.spin_once(self.initial_pose_sub, timeout_sec=1.0)
